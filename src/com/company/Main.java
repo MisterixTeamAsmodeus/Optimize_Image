@@ -5,34 +5,36 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.CopyOption;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributeView;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Locale;
 
 public class Main {
 
     public static void main(String[] args) throws IOException {
+        File dir = new File("data/Output/");
+        try {
+            Files.walk(dir.toPath()).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+        } catch (Exception ignored){}
+        dir.mkdir();
         File[] workFiles = getWorkFiles();
         doOptimize(workFiles);
     }
 
     private static void doOptimize(File[] workFiles) throws IOException {
-        if (!new File("data/Output/").exists()) {
-            new File("data/Output/").mkdir();
-        }
-        for (int i = 0; i < workFiles.length; i++){
+        for (int i = 0; i < workFiles.length; i++) {
             File file = workFiles[i];
-            System.out.println(file.getName() + " " + (i + 1) + " : " + workFiles.length);
+            System.out.println(file.getPath() + " " + (i + 1) + " : " + workFiles.length);
             String format = file.getName().substring(file.getName().lastIndexOf(".")).toLowerCase(Locale.ROOT);
             if (format.equals(".jpg")) {
-                createNewFile(file,ImageIO.read(file), "data/Output/" + file.getName());
+                createNewFile(file, ImageIO.read(file), file.getPath().replace("Image", "Output"));
             } else if (format.equals(".png")) {
                 convertPNGToJPEG(file);
             } else {
-                File outputFile = new File("data/Output/" + file.getName());
+                File outputFile = new File(file.getPath().replace("Image", "Output"));
                 Files.copy(file.toPath(), outputFile.toPath());
                 setTime(file, outputFile);
             }
@@ -53,18 +55,41 @@ public class Main {
         BufferedImage bufferedImage = ImageIO.read(file);
         BufferedImage newBufferedImage = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(), BufferedImage.TYPE_INT_RGB);
         newBufferedImage.createGraphics().drawImage(bufferedImage, 0, 0, Color.WHITE, null);
-        String path = "data/Output/" + file.getName().substring(0, file.getName().lastIndexOf(".")) + ".jpg";
+        String path = file.getPath().replace("Image", "Output").substring(0, file.getPath().replace("Image", "Output").lastIndexOf(".")) + ".jpg";
         createNewFile(file, newBufferedImage, path);
     }
 
     private static void createNewFile(File inputFile, BufferedImage newBufferedImage, String path) throws IOException {
         File outputFile = new File(path);
+        outputFile.createNewFile();
         ImageIO.write(newBufferedImage, "jpg", outputFile);
         setTime(inputFile, outputFile);
     }
 
     private static File[] getWorkFiles() {
         File workDirectory = new File("data/Image/");
-        return workDirectory.listFiles();
+        ArrayList<File> files = new ArrayList<>();
+        for (File file : workDirectory.listFiles()) {
+            files.addAll(getAllFile(file));
+        }
+        return files.toArray(new File[0]);
+    }
+
+    private static ArrayList<File> getAllFile(File file) {
+        if (file.isFile()) {
+            ArrayList<File> files = new ArrayList<>();
+            files.add(file);
+            return files;
+        }
+        if (file.isDirectory()) {
+            new File(file.getPath().replace("Image", "Output")).mkdir();
+            ArrayList<File> files = new ArrayList<>();
+            for (File file1 : file.listFiles()) {
+                files.addAll(getAllFile(file1));
+            }
+            return files;
+        }
+
+        return null;
     }
 }
